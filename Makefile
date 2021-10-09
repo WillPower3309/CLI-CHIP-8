@@ -1,2 +1,2 @@
 main:
-	gcc main.c -o chip8
+	gcc main.c -o c8
