@@ -90,6 +90,10 @@ void initRom(char *game) {
 // draw a sprite to the display
 // TODO: fix me!
 void draw(uint8_t xCoordinate, uint8_t yCoordinate, uint8_t spriteHeight)  {
+    // take mod bounds to account for overflow
+    uint8_t x = xCoordinate % DISPLAY_X;
+    uint8_t y = yCoordinate % DISPLAY_Y;
+
     // collision register defaults to 0
     V[0xF] = 0;
 
@@ -100,7 +104,7 @@ void draw(uint8_t xCoordinate, uint8_t yCoordinate, uint8_t spriteHeight)  {
         // iterate through each bit in the sprite byte
         for (uint8_t spriteBitIndex = 0; spriteBitIndex < 8; spriteBitIndex++) {
             if(((spriteByte >> spriteBitIndex) & 0x1) == 1) {
-                bool *pixelVal = &display[yCoordinate + spriteByteIndex][xCoordinate + (7 - spriteBitIndex)];
+                bool *pixelVal = &display[y + spriteByteIndex][x + (7 - spriteBitIndex)];
                 // set collision register to 1 if any pixels become turned off
                 if(*pixelVal == 1) {
                     V[0xF] = 1;
@@ -108,6 +112,16 @@ void draw(uint8_t xCoordinate, uint8_t yCoordinate, uint8_t spriteHeight)  {
                 // set pixel val to pixel val XOR 1
                 *pixelVal ^= 1;
             }
+
+            // check if right edge reached
+            if (x + (7 - spriteBitIndex) == DISPLAY_X - 1) {
+                break;
+            }
+        }
+
+        // check if bottom edge reached
+        if (y + spriteByteIndex == DISPLAY_Y - 1) {
+            break;
         }
     }
  
@@ -246,7 +260,7 @@ int main(int argc, char *argv[]) {
     }
 
     // initialize global vars
-    ORIGINAL_FORMAT = 1;
+    ORIGINAL_FORMAT = 0;
     PC = 0x200; // starts at 0x200
     I = 0;
     SP = -1;
