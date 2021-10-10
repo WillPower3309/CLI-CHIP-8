@@ -63,6 +63,34 @@ void initRom(char *game) {
     fclose(fgame);
 }
 
+// draw a sprite to the display
+void draw(uint8_t height, uint8_t x_coordinate, uint8_t y_coordinate) {
+    uint16_t memAddress = I;
+    uint8_t spriteData;
+
+    // X and Y coordinates can wrap, so take mod 64 and mod 32
+    uint8_t x = x_coordinate % 64;
+    uint8_t y = y_coordinate % 32;
+
+    printf("draw: %d %d %d\n", height, x, y);
+
+    V[15] = 0;
+
+    // TODO: try to replace int i with memAddress
+    for (int i = 0; i < height; i++) {
+        spriteData = memory[memAddress];
+        memAddress++;
+    }
+
+
+    for (int i = 0; i < DISPLAY_Y; i++) {
+        for (int j = 0; j < DISPLAY_X; j++) {
+            printf("%d ", display[DISPLAY_Y][DISPLAY_X]);
+        }
+        printf("\n");
+    }
+}
+
 // decode and execute the opcode instruction
 void execute(uint16_t opcode) {
     // executed instruction depends on highest order byte
@@ -94,7 +122,7 @@ void execute(uint16_t opcode) {
             I = NNN(opcode);
             break;
         case 0xD000: // display / draw XYN
-            printf("draw\n");
+            draw(N(opcode), V[X(opcode)], V[Y(opcode)]);
             break;
         default:
             unknownOpcode(opcode);
@@ -111,7 +139,7 @@ int main(int argc, char *argv[]) {
     // initialize global vars
     PC = 0x200;
     initRom(argv[1]);
-    
+
     uint16_t opcode;
 
     // main process loop
