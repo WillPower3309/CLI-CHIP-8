@@ -244,9 +244,44 @@ void execute(uint16_t opcode) {
         case 0xA000: // set index register I to NNN
             I = NNN(opcode);
             break;
+        case 0xB000: // jump with offset
+            if (ORIGINAL_FORMAT) {
+                // jump to NNN + V0
+                PC = NNN(opcode) + V[0];
+            }
+            else {
+                // jump to XNN + V0
+                PC = (opcode & 0x0FFF) + V[X(opcode)];
+            }
+            break;
+        case 0xC000: // generate random num to VX
+            V[X(opcode)] = (rand() % 256) & NN;
+            break;
         case 0xD000: // display / draw XYN
             draw(V[X(opcode)], V[Y(opcode)], N(opcode));
             break;
+        // TODO: not being called when 0xF155
+        case 0xF000: // miscellaneous operations
+            switch (opcode & 0x00FF) {
+                case 0x0055: // store V0 to VX in memory, starting at I
+                    for (uint16_t i = 0; i < X(opcode); i++) {
+                        memory[I + i] = V[i];
+                    }
+                    if (ORIGINAL_FORMAT) {
+                        I += X(opcode) + 1;
+                    }
+                    break;
+                case 0x0065: // load V0 to VX from memory, starting at I
+                    for (uint16_t i = 0; i < X(opcode); i++) {
+                        V[i] = memory[I + i];
+                    }
+                    if (ORIGINAL_FORMAT) {
+                        I += X(opcode) + 1;
+                    }
+                    break;
+                default:
+                    unknownOpcode(opcode);
+            }
         default:
             unknownOpcode(opcode);
     }
