@@ -9,6 +9,7 @@
 //  Imports & Definitions
 ////////////////////////////////////////////////////////////////////
 
+// imports
 #include <stdio.h>
 #include <stdlib.h>
 #include <stdbool.h>
@@ -30,14 +31,15 @@
 #define NNN(num) (num & 0x0FFF) // second, third, and fourth nibbles
 
 ////////////////////////////////////////////////////////////////////
-//  Global CHIP-8 Hardware Vars
+//  Global Vars
 ////////////////////////////////////////////////////////////////////
 
-bool     display[DISPLAY_X][DISPLAY_Y]; // monochrome display (1 = white, 0 = black)
+// CHIP-8 Hardware 
 uint8_t  memory[MEMORY_SIZE]; // emulated RAM
-uint8_t  V[NUM_GENERAL_REGISTERS]; // general purpose registers
 uint16_t PC; // program counter - points to current instruction in memory
-uint16_t I; // register used to point at locations in memory
+uint16_t I; // register used to point at location in memory
+uint8_t  V[NUM_GENERAL_REGISTERS]; // general purpose registers
+bool     display[DISPLAY_X][DISPLAY_Y]; // monochrome display (1 = white, 0 = black)
 
 ////////////////////////////////////////////////////////////////////
 //  Functionality
@@ -45,7 +47,7 @@ uint16_t I; // register used to point at locations in memory
 
 // print unknown opcode error message and exit
 void unknownOpcode(uint16_t opcode) {
-    printf("unknown opcode 0x%X\n", opcode);
+    printf("ERROR: unknown opcode 0x%X\n", opcode);
     exit(0);
 }
 
@@ -53,6 +55,7 @@ void unknownOpcode(uint16_t opcode) {
 void initRom(char *game) {
     FILE *fgame = fopen(game, "rb");
 
+    // check if the game file exists
     if (!fgame) {
         printf("Error! Rom %s does not exist.\n", game);
         exit(0);
@@ -64,28 +67,36 @@ void initRom(char *game) {
 }
 
 // draw a sprite to the display
-void draw(uint8_t height, uint8_t x_coordinate, uint8_t y_coordinate) {
-    uint16_t memAddress = I;
-    uint8_t spriteData;
+// TODO: fix me!
+void draw(uint8_t xCoordinate, uint8_t yCoordinate, uint8_t spriteHeight)  {
+    // collision register defaults to 0
+    V[0xF] = 0;
 
-    // X and Y coordinates can wrap, so take mod 64 and mod 32
-    uint8_t x = x_coordinate % 64;
-    uint8_t y = y_coordinate % 32;
+    for (uint8_t spriteByteIndex = 0; spriteByteIndex < spriteHeight; spriteByteIndex++) {
+        // get sprite byte, counting from the I register
+        uint8_t spriteByte = memory[I + spriteByteIndex];
 
-    printf("draw: %d %d %d\n", height, x, y);
-
-    V[15] = 0;
-
-    // TODO: try to replace int i with memAddress
-    for (int i = 0; i < height; i++) {
-        spriteData = memory[memAddress];
-        memAddress++;
+        // iterate through each bit in the sprite byte
+        for (uint8_t spriteBitIndex = 0; spriteBitIndex < 8; spriteBitIndex++) {
+            if(((spriteByte >> spriteBitIndex) & 0x1) == 1) {
+                bool *pixelVal = &display[yCoordinate + spriteByteIndex][xCoordinate + (7 - spriteBitIndex)];
+                // set collision register to 1 if any pixels become turned off
+                if(*pixelVal == 1) {
+                    V[0xF] = 1;
+                }
+                // set pixel val to pixel val XOR 1
+                *pixelVal = *pixelVal ^ 1;
+            }
+        }
     }
-
-
+ 
+    // present the updated display on the console
     for (int i = 0; i < DISPLAY_Y; i++) {
         for (int j = 0; j < DISPLAY_X; j++) {
-            printf("%d ", display[DISPLAY_Y][DISPLAY_X]);
+            if (display[i][j])
+                printf("0");
+            else
+                printf(" ");
         }
         printf("\n");
     }
@@ -99,30 +110,46 @@ void execute(uint16_t opcode) {
         case 0x0000:
             switch (opcode & 0x0FF0) {
                 case 0x00E0: // clear screen
-                    memset(display, 0, sizeof display);
+                    memset(display, 0, sizeof(bool) * (DISPLAY_X * DISPLAY_Y));
                     break;
                 default:
                     unknownOpcode(opcode);
             }
             break;
         case 0x1000: // jump to address NNN
-            printf("jump to %d\n", NNN(opcode));
-            // PC = NNN;
+            PC = NNN(opcode);
+            break;
+        case 0x3000: // skip if VX == NN
+            if (V[X(opcode)] == NN(opcode)) {
+                PC += 2;
+            }
+            break;
+        case 0x4000: // skip if VX != NN
+            if (V[X(opcode)] == NN(opcode)) {
+                PC += 2;
+            }
+            break;
+        case 0x5000: // skip if VX == VY
+            if (V[X(opcode)] == V[Y(opcode)]) {
+                PC += 2;
+            }
             break;
         case 0x6000: // set register VX to NN
-            printf("set register\n");
             V[X(opcode)] = NN(opcode);
             break;
         case 0x7000: // add NN to register VX
-            printf("add to register\n");
             V[X(opcode)] += NN(opcode);
             break;
+        case 0x9000: // skip if VX != VY
+            if (V[X(opcode)] != V[Y(opcode)]) {
+                PC += 2;
+            }
+            break;
         case 0xA000: // set index register I to NNN
-            printf("set index register\n");
             I = NNN(opcode);
             break;
         case 0xD000: // display / draw XYN
-            draw(N(opcode), V[X(opcode)], V[Y(opcode)]);
+            draw(V[X(opcode)], V[Y(opcode)], N(opcode));
             break;
         default:
             unknownOpcode(opcode);
@@ -138,17 +165,22 @@ int main(int argc, char *argv[]) {
 
     // initialize global vars
     PC = 0x200;
+    I = 0;
+    memset(memory, 0, sizeof(uint8_t) * MEMORY_SIZE);
+    memset(V, 0, sizeof(uint8_t) * NUM_GENERAL_REGISTERS);
+    memset(display, 0, sizeof(bool) * (DISPLAY_X * DISPLAY_Y));
+
     initRom(argv[1]);
 
-    uint16_t opcode;
+    uint16_t opcode = 0;
 
     // main process loop
     while (1) {
-        // read the instruction that the PC is currently pointing to
+        // read the instruction that the PC is currently pointing to & increment PC
         opcode = memory[PC] << 8 | memory[PC + 1];
         PC += 2;
 
-        // execute the opcode
+        // execute the operation
         execute(opcode);
     }
 }
