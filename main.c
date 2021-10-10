@@ -43,8 +43,8 @@ uint16_t PC; // program counter - points to current instruction in memory
 uint16_t I; // register used to point at location in memory
 uint8_t  V[NUM_GENERAL_REGISTERS]; // general purpose registers
 uint16_t stack[STACK_SIZE];
-short SP; // points to top of stack
-bool     display[DISPLAY_X][DISPLAY_Y]; // monochrome display (1 = white, 0 = black)
+short    SP; // points to top of stack
+bool     display[DISPLAY_Y][DISPLAY_X]; // monochrome display (1 = white, 0 = black)
 
 ////////////////////////////////////////////////////////////////////
 //  Functionality
@@ -261,7 +261,7 @@ int main(int argc, char *argv[]) {
 
     // initialize global vars
     ORIGINAL_FORMAT = 0;
-    PC = 0x200; // starts at 0x200
+    PC = 0x200;
     I = 0;
     SP = -1;
     memset(memory, 0, sizeof(uint8_t) * MEMORY_SIZE);
