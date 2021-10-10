@@ -21,6 +21,7 @@
 #define DISPLAY_Y 32
 #define MEMORY_SIZE 4096 // CHIP-8 has up to 4 kilobytes of RAM
 #define NUM_GENERAL_REGISTERS 16 // 16 registers - 0 through F
+#define STACK_SIZE 16
 #define MAX_GAME_SIZE (0x1000 - 0x200)
 
 // hexadecimal macros
@@ -34,16 +35,36 @@
 //  Global Vars
 ////////////////////////////////////////////////////////////////////
 
+bool ORIGINAL_FORMAT; // 0: post CHIP-48 instructions, 1: original operations
+
 // CHIP-8 Hardware 
 uint8_t  memory[MEMORY_SIZE]; // emulated RAM
 uint16_t PC; // program counter - points to current instruction in memory
 uint16_t I; // register used to point at location in memory
 uint8_t  V[NUM_GENERAL_REGISTERS]; // general purpose registers
+uint16_t stack[STACK_SIZE];
+short SP; // points to top of stack
 bool     display[DISPLAY_X][DISPLAY_Y]; // monochrome display (1 = white, 0 = black)
 
 ////////////////////////////////////////////////////////////////////
 //  Functionality
 ////////////////////////////////////////////////////////////////////
+
+void push(uint16_t data) {
+    if (SP == STACK_SIZE - 1) {
+        printf("ERROR: Stack Overflow\n");
+        exit(0);
+    }
+    stack[++SP] = data;
+}
+
+uint16_t pop() {
+    if (SP == -1) {
+        printf("ERROR: Stack Underflow\n");
+        exit(0);
+    }
+    return stack[SP--];
+}
 
 // print unknown opcode error message and exit
 void unknownOpcode(uint16_t opcode) {
@@ -85,7 +106,7 @@ void draw(uint8_t xCoordinate, uint8_t yCoordinate, uint8_t spriteHeight)  {
                     V[0xF] = 1;
                 }
                 // set pixel val to pixel val XOR 1
-                *pixelVal = *pixelVal ^ 1;
+                *pixelVal ^= 1;
             }
         }
     }
@@ -104,19 +125,27 @@ void draw(uint8_t xCoordinate, uint8_t yCoordinate, uint8_t spriteHeight)  {
 
 // decode and execute the opcode instruction
 void execute(uint16_t opcode) {
-    // executed instruction depends on highest order byte
+    // executed instruction depends on highest order (first) byte
     switch (opcode & 0xF000) {
-        // first byte is 0
         case 0x0000:
-            switch (opcode & 0x0FF0) {
+            switch (opcode & 0x00FF) {
                 case 0x00E0: // clear screen
                     memset(display, 0, sizeof(bool) * (DISPLAY_X * DISPLAY_Y));
+                    break;
+                case 0x00EE: // return from subroutine
+                    // pop the PC prior to calling subroutine from stack
+                    PC = pop();
                     break;
                 default:
                     unknownOpcode(opcode);
             }
             break;
         case 0x1000: // jump to address NNN
+            PC = NNN(opcode);
+            break;
+        case 0x2000: // call subroutine at address NNN
+            // push current PC to stack
+            push(PC);
             PC = NNN(opcode);
             break;
         case 0x3000: // skip if VX == NN
@@ -140,6 +169,59 @@ void execute(uint16_t opcode) {
         case 0x7000: // add NN to register VX
             V[X(opcode)] += NN(opcode);
             break;
+        case 0x8000: // logical & arithmetic functions
+            switch (opcode & 0x000F) {
+                case 0x0000: // set VX to VY
+                    V[X(opcode)] = V[Y(opcode)];
+                    break;
+                case 0x0001: // VX = VX OR VY
+                    V[X(opcode)] |= V[Y(opcode)];
+                    break;
+                case 0x0002: // VX = VX AND VY
+                    V[X(opcode)] &= V[Y(opcode)];
+                    break;
+                case 0x0003: // VX = VX XOR VY
+                    V[X(opcode)] ^= V[Y(opcode)];
+                    break;
+                case 0x0004: // VX = VX + VY (set carry flag unlike 7XNN add)
+                    V[0xF] = ((int) V[X(opcode)] + (int) V[Y(opcode)]) > 255 ? 1 : 0;
+                    V[X(opcode)] += V[Y(opcode)];
+                    break;
+                case 0x0005: // VX = VX - VY
+                    if (V[X(opcode)] > V[Y(opcode)]) {
+                        V[0xF] = 1;
+                    }
+                    else if (V[X(opcode)] < V[Y(opcode)]) {
+                        V[0xF] = 0;
+                    }
+                    V[X(opcode)] -= V[Y(opcode)];
+                    break;
+                case 0x0006: // shift right
+                    if (ORIGINAL_FORMAT) {
+                        V[X(opcode)] = V[Y(opcode)];
+                    }
+                    V[0xF] = V[X(opcode)] & 0x1;
+                    V[X(opcode)] >>= 1;
+                    break;
+                case 0x0007: // VX = VY - VX
+                    if (V[Y(opcode)] > V[X(opcode)]) {
+                        V[0xF] = 1;
+                    }
+                    else if (V[Y(opcode)] < V[X(opcode)]) {
+                        V[0xF] = 0;
+                    }
+                    V[X(opcode)] = V[Y(opcode)] - V[X(opcode)];
+                    break;
+                case 0x000E: // shift left
+                    if (ORIGINAL_FORMAT) {
+                        V[X(opcode)] = V[Y(opcode)];
+                    }
+                    V[0xF] = (V[X(opcode)] >> 7) & 0x1;
+                    V[X(opcode)] <<= 1;
+                    break;
+                default:
+                    unknownOpcode(opcode);
+            }
         case 0x9000: // skip if VX != VY
             if (V[X(opcode)] != V[Y(opcode)]) {
                 PC += 2;
@@ -164,22 +246,25 @@ int main(int argc, char *argv[]) {
     }
 
     // initialize global vars
-    PC = 0x200;
+    ORIGINAL_FORMAT = 1;
+    PC = 0x200; // starts at 0x200
     I = 0;
+    SP = -1;
     memset(memory, 0, sizeof(uint8_t) * MEMORY_SIZE);
     memset(V, 0, sizeof(uint8_t) * NUM_GENERAL_REGISTERS);
+    memset(stack, 0, sizeof(uint16_t) * STACK_SIZE);
     memset(display, 0, sizeof(bool) * (DISPLAY_X * DISPLAY_Y));
 
+    // load and init the ROM
     initRom(argv[1]);
 
-    uint16_t opcode = 0;
-
     // main process loop
+    uint16_t opcode = 0;
     while (1) {
         // read the instruction that the PC is currently pointing to & increment PC
         opcode = memory[PC] << 8 | memory[PC + 1];
         PC += 2;
-
+ 
         // execute the operation
         execute(opcode);
     }
