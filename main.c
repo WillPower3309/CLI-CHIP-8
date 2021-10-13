@@ -235,6 +235,7 @@ void execute(uint16_t opcode) {
                 default:
                     unknownOpcode(opcode);
             }
+            break;
         case 0x9000: // skip if VX != VY
             if (V[X(opcode)] != V[Y(opcode)]) {
                 PC += 2;
@@ -259,7 +260,6 @@ void execute(uint16_t opcode) {
         case 0xD000: // display / draw XYN
             draw(V[X(opcode)], V[Y(opcode)], N(opcode));
             break;
-        // TODO: not being called when 0xF155
         case 0xF000: // miscellaneous operations
             switch (opcode & 0x00FF) {
                 case 0x0055: // store V0 to VX in memory, starting at I
@@ -281,6 +281,7 @@ void execute(uint16_t opcode) {
                 default:
                     unknownOpcode(opcode);
             }
+            break;
         default:
             unknownOpcode(opcode);
     }
