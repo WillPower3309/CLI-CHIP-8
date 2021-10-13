@@ -88,7 +88,6 @@ void initRom(char *game) {
 }
 
 // draw a sprite to the display
-// TODO: fix me!
 void draw(uint8_t xCoordinate, uint8_t yCoordinate, uint8_t spriteHeight)  {
     // take mod bounds to account for overflow
     uint8_t x = xCoordinate % DISPLAY_X;
@@ -114,7 +113,7 @@ void draw(uint8_t xCoordinate, uint8_t yCoordinate, uint8_t spriteHeight)  {
             }
 
             // check if right edge reached
-            if (x + (7 - spriteBitIndex) == DISPLAY_X - 1) {
+            if (x == DISPLAY_X - 1) {
                 break;
             }
         }
@@ -255,7 +254,7 @@ void execute(uint16_t opcode) {
             }
             break;
         case 0xC000: // generate random num to VX
-            V[X(opcode)] = (rand() % 256) & NN;
+            V[X(opcode)] = (rand() % 256) & NN(opcode);
             break;
         case 0xD000: // display / draw XYN
             draw(V[X(opcode)], V[Y(opcode)], N(opcode));
