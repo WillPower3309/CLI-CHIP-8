@@ -262,6 +262,11 @@ void execute(uint16_t opcode) {
             break;
         case 0xF000: // miscellaneous operations
             switch (opcode & 0x00FF) {
+                case 0x0033: // binary coded decimal conversion
+                    memory[I] = V[X(opcode)] / 100; // store first digit in memory[I]
+                    memory[I + 1] = (V[X(opcode)]  % 100) / 10; // store second digit in next block
+                    memory[I + 2] = V[X(opcode)] % 10; // store third digit in next block
+                    break;
                 case 0x0055: // store V0 to VX in memory, starting at I
                     for (uint16_t i = 0; i < X(opcode); i++) {
                         memory[I + i] = V[i];
