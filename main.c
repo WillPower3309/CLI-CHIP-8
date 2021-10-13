@@ -9,12 +9,15 @@
 //  Imports & Definitions
 ////////////////////////////////////////////////////////////////////
 
+
 // imports
 #include <stdio.h>
 #include <stdlib.h>
 #include <stdbool.h>
 #include <stdint.h>
 #include <string.h>
+#include <wchar.h>
+#include <locale.h>
 
 // hardware constants
 #define DISPLAY_X 64
@@ -31,9 +34,11 @@
 #define NN(num) (num & 0x00FF) // second byte (third and fourth nibbles)
 #define NNN(num) (num & 0x0FFF) // second, third, and fourth nibbles
 
+
 ////////////////////////////////////////////////////////////////////
 //  Global Vars
 ////////////////////////////////////////////////////////////////////
+
 
 bool ORIGINAL_FORMAT; // 0: post CHIP-48 instructions, 1: original operations
 
@@ -46,9 +51,11 @@ uint16_t stack[STACK_SIZE];
 short    SP; // points to top of stack
 bool     display[DISPLAY_Y][DISPLAY_X]; // monochrome display (1 = white, 0 = black)
 
+
 ////////////////////////////////////////////////////////////////////
 //  Functionality
 ////////////////////////////////////////////////////////////////////
+
 
 void push(uint16_t data) {
     if (SP == STACK_SIZE - 1) {
@@ -58,6 +65,7 @@ void push(uint16_t data) {
     stack[++SP] = data;
 }
 
+
 uint16_t pop() {
     if (SP == -1) {
         printf("ERROR: Stack Underflow\n");
@@ -66,11 +74,13 @@ uint16_t pop() {
     return stack[SP--];
 }
 
+
 // print unknown opcode error message and exit
 void unknownOpcode(uint16_t opcode) {
     printf("ERROR: unknown opcode 0x%X\n", opcode);
     exit(0);
 }
+
 
 // open and initialize a ROM given its path
 void initRom(char *game) {
@@ -87,7 +97,22 @@ void initRom(char *game) {
     fclose(fgame);
 }
 
-// draw a sprite to the display
+
+// print the display to the console
+void consoleDisplay() {
+    for (int i = 0; i < DISPLAY_Y; i++) {
+        for (int j = 0; j < DISPLAY_X; j++) {
+            if (display[i][j])
+                wprintf(L"%lc", 0x2588);
+            else
+                printf(" ");
+        }
+        printf("\n");
+    }
+}
+
+
+// draw a sprite to the display variable
 void draw(uint8_t xCoordinate, uint8_t yCoordinate, uint8_t spriteHeight)  {
     // take mod bounds to account for overflow
     uint8_t x = xCoordinate % DISPLAY_X;
@@ -123,18 +148,11 @@ void draw(uint8_t xCoordinate, uint8_t yCoordinate, uint8_t spriteHeight)  {
             break;
         }
     }
- 
-    // present the updated display on the console
-    for (int i = 0; i < DISPLAY_Y; i++) {
-        for (int j = 0; j < DISPLAY_X; j++) {
-            if (display[i][j])
-                printf("0");
-            else
-                printf(" ");
-        }
-        printf("\n");
-    }
+    
+    // present the updated display to the console
+    consoleDisplay();
 }
+
 
 // decode and execute the opcode instruction
 void execute(uint16_t opcode) {
@@ -144,6 +162,8 @@ void execute(uint16_t opcode) {
             switch (opcode & 0x00FF) {
                 case 0x00E0: // clear screen
                     memset(display, 0, sizeof(bool) * (DISPLAY_X * DISPLAY_Y));
+                    // present the newly cleared display to the console
+                    consoleDisplay();
                     break;
                 case 0x00EE: // return from subroutine
                     // pop the PC prior to calling subroutine from stack
@@ -292,6 +312,7 @@ void execute(uint16_t opcode) {
     }
 }
 
+
 int main(int argc, char *argv[]) {
     // Handle input arguments
     if (argc != 2) {
@@ -311,6 +332,9 @@ int main(int argc, char *argv[]) {
 
     // load and init the ROM
     initRom(argv[1]);
+
+    // set the locale for the unicode display drawing function
+    setlocale(LC_CTYPE, "");
 
     // main process loop
     uint16_t opcode = 0;
