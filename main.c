@@ -39,6 +39,7 @@
 //  Global Vars
 ////////////////////////////////////////////////////////////////////
 
+
 bool ORIGINAL_FORMAT; // 0: post CHIP-48 instructions, 1: original operations
 
 bool drawFlag; // if true, ncurses will update the CLI
@@ -50,6 +51,8 @@ uint16_t I; // register used to point at location in memory
 uint8_t  V[NUM_GENERAL_REGISTERS]; // general purpose registers
 uint16_t stack[STACK_SIZE];
 short    stackPtr; // points to top of stack
+uint8_t  delayTimer;
+uint8_t  soundTimer;
 bool     display[DISPLAY_Y][DISPLAY_X]; // monochrome display (1 = white, 0 = black)
 
 
@@ -263,6 +266,18 @@ void execute(uint16_t opcode) {
             break;
         case 0xF000: // miscellaneous operations
             switch (opcode & 0x00FF) {
+                case 0x0007: // set VX to delay timer
+                    V[X(opcode)] = delayTimer;
+                    break;
+                case 0x0015: // set delay timer to VX
+                    delayTimer = V[X(opcode)];
+                    break;
+                case 0x0018: // set sound timer to VX
+                    soundTimer = V[X(opcode)];
+                    break;
+                case 0x0029: // font: set I to hexadecimal character in VX
+                    I = 5 * V[X(opcode)]; // multiply by 5 since 5 bytes per character in fontset
+                    break;
                 case 0x0033: // binary coded decimal conversion
                     memory[I] = V[X(opcode)] / 100; // store first digit in memory[I]
                     memory[I + 1] = (V[X(opcode)]  % 100) / 10; // store second digit in next block
@@ -293,6 +308,18 @@ void execute(uint16_t opcode) {
     }
 }
 
+void tick() {
+    if (delayTimer > 0) {
+        delayTimer--;
+    }
+    if (soundTimer > 0) {
+        soundTimer--;
+        if (soundTimer == 0) {
+            // TODO: BEEP ME
+        }
+    }
+}
+
 
 int main(int argc, char *argv[]) {
     setlocale(LC_ALL, "");
@@ -308,10 +335,35 @@ int main(int argc, char *argv[]) {
     PC = 0x200;
     I = 0;
     stackPtr = 0;
+    delayTimer = 0;
+    soundTimer = 0;
     memset(memory, 0, sizeof(uint8_t) * MEMORY_SIZE);
     memset(V, 0, sizeof(uint8_t) * NUM_GENERAL_REGISTERS);
     memset(stack, 0, sizeof(uint16_t) * STACK_SIZE);
     memset(display, 0, sizeof(bool) * (DISPLAY_X * DISPLAY_Y));
+
+    // store font in memory
+    uint8_t fontset[80] = { 
+        0xF0, 0x90, 0x90, 0x90, 0xF0, // 0
+        0x20, 0x60, 0x20, 0x20, 0x70, // 1
+        0xF0, 0x10, 0xF0, 0x80, 0xF0, // 2
+        0xF0, 0x10, 0xF0, 0x10, 0xF0, // 3
+        0x90, 0x90, 0xF0, 0x10, 0x10, // 4
+        0xF0, 0x80, 0xF0, 0x10, 0xF0, // 5
+        0xF0, 0x80, 0xF0, 0x90, 0xF0, // 6
+        0xF0, 0x10, 0x20, 0x40, 0x40, // 7
+        0xF0, 0x90, 0xF0, 0x90, 0xF0, // 8
+        0xF0, 0x90, 0xF0, 0x10, 0xF0, // 9
+        0xF0, 0x90, 0xF0, 0x90, 0x90, // A
+        0xE0, 0x90, 0xE0, 0x90, 0xE0, // B
+        0xF0, 0x80, 0x80, 0x80, 0xF0, // C
+        0xE0, 0x90, 0x90, 0x90, 0xE0, // D
+        0xF0, 0x80, 0xF0, 0x80, 0xF0, // E
+        0xF0, 0x80, 0xF0, 0x80, 0x80  // F 
+    };
+    for (int i = 0; i < 80; i++) {
+        memory[i] = fontset[i];
+    }
 
     // load and init the ROM
     initRom(argv[1]);
@@ -357,6 +409,9 @@ int main(int argc, char *argv[]) {
             drawFlag = FALSE;
             consoleDisplay(screenWin);
         }
+
+        // update timers
+        tick();
     }
 
     endwin();
