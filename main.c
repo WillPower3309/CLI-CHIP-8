@@ -16,8 +16,8 @@
 #include <stdbool.h>
 #include <stdint.h>
 #include <string.h>
-#include <wchar.h>
 #include <locale.h>
+#include <ncursesw/ncurses.h>
 
 // hardware constants
 #define DISPLAY_X 64
@@ -39,8 +39,9 @@
 //  Global Vars
 ////////////////////////////////////////////////////////////////////
 
-
 bool ORIGINAL_FORMAT; // 0: post CHIP-48 instructions, 1: original operations
+
+bool drawFlag; // if true, ncurses will update the CLI
 
 // CHIP-8 Hardware 
 uint8_t  memory[MEMORY_SIZE]; // emulated RAM
@@ -48,31 +49,13 @@ uint16_t PC; // program counter - points to current instruction in memory
 uint16_t I; // register used to point at location in memory
 uint8_t  V[NUM_GENERAL_REGISTERS]; // general purpose registers
 uint16_t stack[STACK_SIZE];
-short    SP; // points to top of stack
+short    stackPtr; // points to top of stack
 bool     display[DISPLAY_Y][DISPLAY_X]; // monochrome display (1 = white, 0 = black)
 
 
 ////////////////////////////////////////////////////////////////////
-//  Functionality
+//  Functions
 ////////////////////////////////////////////////////////////////////
-
-
-void push(uint16_t data) {
-    if (SP == STACK_SIZE - 1) {
-        printf("ERROR: Stack Overflow\n");
-        exit(0);
-    }
-    stack[++SP] = data;
-}
-
-
-uint16_t pop() {
-    if (SP == -1) {
-        printf("ERROR: Stack Underflow\n");
-        exit(0);
-    }
-    return stack[SP--];
-}
 
 
 // print unknown opcode error message and exit
@@ -99,16 +82,16 @@ void initRom(char *game) {
 
 
 // print the display to the console
-void consoleDisplay() {
-    for (int i = 0; i < DISPLAY_Y; i++) {
-        for (int j = 0; j < DISPLAY_X; j++) {
-            if (display[i][j])
-                wprintf(L"%lc", 0x2588);
-            else
-                printf(" ");
+void consoleDisplay(WINDOW *window) {
+    for (int y = 0; y < DISPLAY_Y; y++) {
+        for (int x = 0; x < DISPLAY_X; x++) {
+            if (display[y][x]) {
+                wmove(window, y + 1, (x * 2) + 1);
+                waddwstr(window, L"\u2588\u2588");
+            }
         }
-        printf("\n");
     }
+    wrefresh(window);
 }
 
 
@@ -118,7 +101,7 @@ void draw(uint8_t xCoordinate, uint8_t yCoordinate, uint8_t spriteHeight)  {
     uint8_t x = xCoordinate % DISPLAY_X;
     uint8_t y = yCoordinate % DISPLAY_Y;
 
-    // collision register defaults to 0
+    // collision register VF defaults to 0
     V[0xF] = 0;
 
     for (uint8_t spriteByteIndex = 0; spriteByteIndex < spriteHeight; spriteByteIndex++) {
@@ -129,7 +112,7 @@ void draw(uint8_t xCoordinate, uint8_t yCoordinate, uint8_t spriteHeight)  {
         for (uint8_t spriteBitIndex = 0; spriteBitIndex < 8; spriteBitIndex++) {
             if(((spriteByte >> spriteBitIndex) & 0x1) == 1) {
                 bool *pixelVal = &display[y + spriteByteIndex][x + (7 - spriteBitIndex)];
-                // set collision register to 1 if any pixels become turned off
+                // set collision register VF to 1 if any pixels become turned off
                 if(*pixelVal == 1) {
                     V[0xF] = 1;
                 }
@@ -148,9 +131,8 @@ void draw(uint8_t xCoordinate, uint8_t yCoordinate, uint8_t spriteHeight)  {
             break;
         }
     }
-    
-    // present the updated display to the console
-    consoleDisplay();
+ 
+    drawFlag = TRUE;
 }
 
 
@@ -162,12 +144,11 @@ void execute(uint16_t opcode) {
             switch (opcode & 0x00FF) {
                 case 0x00E0: // clear screen
                     memset(display, 0, sizeof(bool) * (DISPLAY_X * DISPLAY_Y));
-                    // present the newly cleared display to the console
-                    consoleDisplay();
+                    drawFlag = TRUE;
                     break;
                 case 0x00EE: // return from subroutine
                     // pop the PC prior to calling subroutine from stack
-                    PC = pop();
+                    PC = stack[--stackPtr];
                     break;
                 default:
                     unknownOpcode(opcode);
@@ -178,7 +159,7 @@ void execute(uint16_t opcode) {
             break;
         case 0x2000: // call subroutine at address NNN
             // push current PC to stack
-            push(PC);
+            stack[stackPtr++] = PC;
             PC = NNN(opcode);
             break;
         case 0x3000: // skip if VX == NN
@@ -314,6 +295,8 @@ void execute(uint16_t opcode) {
 
 
 int main(int argc, char *argv[]) {
+    setlocale(LC_ALL, "");
+
     // Handle input arguments
     if (argc != 2) {
         printf("Please specify an input ROM.\n");
@@ -324,7 +307,7 @@ int main(int argc, char *argv[]) {
     ORIGINAL_FORMAT = 0;
     PC = 0x200;
     I = 0;
-    SP = -1;
+    stackPtr = 0;
     memset(memory, 0, sizeof(uint8_t) * MEMORY_SIZE);
     memset(V, 0, sizeof(uint8_t) * NUM_GENERAL_REGISTERS);
     memset(stack, 0, sizeof(uint16_t) * STACK_SIZE);
@@ -333,17 +316,49 @@ int main(int argc, char *argv[]) {
     // load and init the ROM
     initRom(argv[1]);
 
-    // set the locale for the unicode display drawing function
-    setlocale(LC_CTYPE, "");
+    // init ncurses
+    initscr();
+
+    int yMax, xMax;
+    getmaxyx(stdscr, yMax, xMax);
+    WINDOW *screenWin = newwin(
+        DISPLAY_Y + 2,
+        (DISPLAY_X * 2) + 2,
+        (yMax - (DISPLAY_Y - 2)) / 2,
+        (xMax - ((DISPLAY_X * 2) - 2)) / 2
+    );
+    cbreak();
+    nodelay(screenWin, TRUE);
+    keypad(screenWin, TRUE);
+    noecho();
+    curs_set(0); // hide cursor
+    timeout(100);
+ 
+    // Draw screen border
+    box(screenWin, 0, 0);
 
     // main process loop
     uint16_t opcode = 0;
     while (1) {
+        char pressedKey = wgetch(screenWin);
+
+        if (pressedKey == 'q') {
+            break;
+        }
+
         // read the instruction that the PC is currently pointing to & increment PC
         opcode = memory[PC] << 8 | memory[PC + 1];
         PC += 2;
- 
+
         // execute the operation
         execute(opcode);
+
+        if (drawFlag) {
+            drawFlag = FALSE;
+            consoleDisplay(screenWin);
+        }
     }
+
+    endwin();
+    return 0;
 }
