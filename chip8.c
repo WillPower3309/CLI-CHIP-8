@@ -257,7 +257,7 @@ void execute(uint16_t opcode) {
                     V[X(opcode)] = delayTimer;
                     break;
                 case 0x000A: // get key
-                    for(i = 0; i < NUM_KEYS; i++) {
+                    for(int i = 0; i < NUM_KEYS; i++) {
                         if (key[i]) {
                             V[X(opcode)] = i;
                             return;
