@@ -1,5 +1,5 @@
 CC=gcc
-CFLAGS=-Wall -pedantic -std=c11
+CFLAGS=-Wall -pedantic -std=gnu99
 LDFLAGS=-lncursesw
 OBJECTS=chip8.c main.c
 
