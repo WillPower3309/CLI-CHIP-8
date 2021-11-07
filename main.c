@@ -14,6 +14,35 @@
 #include <unistd.h>
 #include <ncursesw/ncurses.h>
 
+
+// map inputs to keys
+int keymap(unsigned char k) {
+    switch (k) {
+        case '1': return 0x1;
+        case '2': return 0x2;
+        case '3': return 0x3;
+        case '4': return 0xc;
+
+        case 'q': return 0x4;
+        case 'w': return 0x5;
+        case 'e': return 0x6;
+        case 'r': return 0xd;
+
+        case 'a': return 0x7;
+        case 's': return 0x8;
+        case 'd': return 0x9;
+        case 'f': return 0xe;
+                  
+        case 'z': return 0xa;
+        case 'x': return 0x0;
+        case 'c': return 0xb;
+        case 'v': return 0xf;
+
+        default:  return -1;
+    }
+}
+
+
 // print the display to the console
 void consoleDisplay(WINDOW *window) {
     // establish display variable from chip8.c
@@ -21,10 +50,12 @@ void consoleDisplay(WINDOW *window) {
 
     for (int y = 0; y < DISPLAY_Y; y++) {
         for (int x = 0; x < DISPLAY_X; x++) {
-            if (display[y][x]) {
-                wmove(window, y + 1, (x * 2) + 1);
-                waddwstr(window, L"\u2588\u2588");
-            }
+            mvwaddstr(
+                window,
+                y + 1,
+                (x * 2) + 1,
+                display[y][x] == 1 ? "\u2588\u2588" : "  "
+            );
         }
     }
     wrefresh(window);
@@ -84,6 +115,11 @@ int main(int argc, char *argv[]) {
 
         // refresh keys to false
         memset(key, 0, sizeof(bool) * NUM_KEYS);
+
+        int index = keymap(pressedKey);
+        if (index > -1) {
+            key[index] = 1;
+        }
 
         // read the instruction that the PC is currently pointing to & increment PC
         opcode = memory[PC] << 8 | memory[PC + 1];
