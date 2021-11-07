@@ -142,7 +142,7 @@ void execute(uint16_t opcode) {
             }
             break;
         case 0x4000: // skip if VX != NN
-            if (V[X(opcode)] == NN(opcode)) {
+            if (V[X(opcode)] != NN(opcode)) {
                 PC += 2;
             }
             break;
@@ -284,7 +284,7 @@ void execute(uint16_t opcode) {
                     memory[I + 2] = V[X(opcode)] % 10; // store third digit in next block
                     break;
                 case 0x0055: // store V0 to VX in memory, starting at I
-                    for (uint16_t i = 0; i < X(opcode); i++) {
+                    for (uint16_t i = 0; i <= X(opcode); i++) {
                         memory[I + i] = V[i];
                     }
                     if (ORIGINAL_FORMAT) {
@@ -292,7 +292,7 @@ void execute(uint16_t opcode) {
                     }
                     break;
                 case 0x0065: // load V0 to VX from memory, starting at I
-                    for (uint16_t i = 0; i < X(opcode); i++) {
+                    for (uint16_t i = 0; i <= X(opcode); i++) {
                         V[i] = memory[I + i];
                     }
                     if (ORIGINAL_FORMAT) {
