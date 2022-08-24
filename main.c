@@ -1,6 +1,5 @@
 // TODO:
 // chip8.h formatting standard (includes)
-// extern var proper usage
 // key input
 
 #include "chip8.h"
@@ -12,7 +11,8 @@
 #include <string.h>
 #include <locale.h>
 #include <unistd.h>
-#include <ncursesw/ncurses.h>
+
+#include <ncurses.h>
 
 
 // map inputs to keys
@@ -44,45 +44,42 @@ int keymap(unsigned char k) {
 
 
 // print the display to the console
-void consoleDisplay(WINDOW *window) {
+void consoleDisplay() {
     // establish display variable from chip8.c
     extern bool display[DISPLAY_Y][DISPLAY_X];
 
     for (int y = 0; y < DISPLAY_Y; y++) {
         for (int x = 0; x < DISPLAY_X; x++) {
-            mvwaddstr(
-                window,
+            mvaddstr(
                 y + 1,
                 (x * 2) + 1,
-                display[y][x] == 1 ? "\u2588\u2588" : "  "
+                display[y][x] == 1 ? "0" : "  "
             );
         }
     }
-    wrefresh(window);
+    refresh();
 }
 
 
 int main(int argc, char *argv[]) {
-    setlocale(LC_ALL, "");
-
     // Handle input arguments
     if (argc != 2) {
         printf("Please specify an input ROM.\n");
         return 0;
     }
 
+    // TODO: remove me?
     // establish variables from chip8.c
     extern bool drawFlag;
-    extern uint16_t PC;
-    extern uint8_t memory[MEMORY_SIZE];
     extern bool key[NUM_KEYS];
 
     // initialize chip8 variables
     initC8();
-    // load and init the ROM
-    initRom(argv[1]);
+    // load and the ROM
+    loadRom(argv[1]);
 
     // init ncurses
+    setlocale(LC_ALL, "en_US.UTF-8");
     initscr();
 
     int yMax, xMax;
@@ -121,9 +118,8 @@ int main(int argc, char *argv[]) {
             key[index] = 1;
         }
 
-        // read the instruction that the PC is currently pointing to & increment PC
-        opcode = memory[PC] << 8 | memory[PC + 1];
-        PC += 2;
+        // fetch the next instruction
+        opcode = fetch();
 
         // execute the operation
         execute(opcode);
@@ -131,7 +127,7 @@ int main(int argc, char *argv[]) {
         // update the display
         if (drawFlag) {
             drawFlag = FALSE;
-            consoleDisplay(screenWin);
+            consoleDisplay();
         }
 
         // update timers
@@ -144,3 +140,4 @@ int main(int argc, char *argv[]) {
     endwin();
     return 0;
 }
+

@@ -18,14 +18,18 @@
 #define NN(num) (num & 0x00FF) // second byte (third and fourth nibbles)
 #define NNN(num) (num & 0x0FFF) // second, third, and fourth nibbles
 
+
 // print unknown opcode error message and exit
 void unknownOpcode(uint16_t opcode);
 
 // open and initialize a ROM given its path
-void initRom(char *game);
+void loadRom(char *game);
 
 // draw a sprite to the display variable
 void draw(uint8_t xCoordinate, uint8_t yCoordinate, uint8_t spriteHeight);
+
+// fetch the next instruction from memory
+uint16_t fetch();
 
 // decode and execute the opcode instruction
 void execute(uint16_t opcode);

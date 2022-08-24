@@ -54,7 +54,7 @@ void unknownOpcode(uint16_t opcode) {
 
 
 // open and initialize a ROM given its path
-void initRom(char *game) {
+void loadRom(char *game) {
     FILE *fgame = fopen(game, "rb");
 
     // check if the game file exists
@@ -109,6 +109,12 @@ void draw(uint8_t xCoordinate, uint8_t yCoordinate, uint8_t spriteHeight) {
     drawFlag = 1;
 }
 
+// fetch the next instruction from memory
+uint16_t fetch() {
+    uint16_t opcode = memory[PC] << 8 | memory[PC + 1];
+    PC += 2;
+    return opcode;
+}
 
 // decode and execute the opcode instruction
 void execute(uint16_t opcode) {
