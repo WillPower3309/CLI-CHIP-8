@@ -363,3 +363,4 @@ void initC8() {
         memory[i] = fontset[i];
     }
 }
+

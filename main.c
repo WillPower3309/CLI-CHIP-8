@@ -32,7 +32,7 @@ int keymap(unsigned char k) {
         case 's': return 0x8;
         case 'd': return 0x9;
         case 'f': return 0xe;
-                  
+
         case 'z': return 0xa;
         case 'x': return 0x0;
         case 'c': return 0xb;
@@ -53,7 +53,7 @@ void consoleDisplay() {
             mvaddstr(
                 y + 1,
                 (x * 2) + 1,
-                display[y][x] == 1 ? "0" : "  "
+                display[y][x] == 1 ? "\u2588\u2588" : "  "
             );
         }
     }
@@ -96,7 +96,7 @@ int main(int argc, char *argv[]) {
     noecho();
     curs_set(0); // hide cursor
     timeout(100);
- 
+
     // Draw screen border
     box(screenWin, 0, 0);
 
@@ -140,4 +140,3 @@ int main(int argc, char *argv[]) {
     endwin();
     return 0;
 }
-
